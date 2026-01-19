@@ -7,6 +7,7 @@ set -e
 VERBOSE=false
 DRY_RUN=false
 CLEAN=false
+AUTO_CONFIRM=false
 
 usage() {
     echo "Usage: $0 [options]"
@@ -14,6 +15,7 @@ usage() {
     echo "  -v, --verbose  Enable verbose output"
     echo "  -d, --dry-run  Show actions without making changes"
     echo "  -c, --clean    Interactively clean up broken symlinks"
+    echo "  -y, --yes      Auto-confirm all prompts (backups, cleanup)"
     echo "  -h, --help     Show this help message"
     exit 1
 }
@@ -33,6 +35,10 @@ while [[ $# -gt 0 ]]; do
             CLEAN=true
             shift
             ;;
+        -y|--yes)
+            AUTO_CONFIRM=true
+            shift
+            ;;
         -h|--help)
             usage
             ;;
@@ -42,26 +48,27 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+# Configuration
+BUILD_DIR="./build"
+SHARED_SKILLS="./shared/skills"
+AGENTS_DIR="./agents"
+TARGET_ROOT="${TARGET_ROOT:-$HOME}"
+BACKUP_DIR="${TARGET_ROOT}/.agent_config_backups"
 
 if [ "$VERBOSE" = true ]; then
     echo "Verbose mode enabled."
+    echo "Target Root: $TARGET_ROOT"
 fi
 
 if [ "$DRY_RUN" = true ]; then
     echo "Dry run mode enabled. No changes will be made."
 fi
 
-if [ "$CLEAN" = true ]; then
-    echo "Clean mode enabled. Interactive cleanup will be performed."
-fi
-
-# Transformation Logic
-BUILD_DIR="./build"
-SHARED_SKILLS="./shared/skills"
-
 # Ensure build directories exist
 mkdir -p "$BUILD_DIR/gemini"
 mkdir -p "$BUILD_DIR/claude"
+
+# --- Transformation Logic ---
 
 # Gemini Transformation (Markdown pass-through)
 if [ -d "$SHARED_SKILLS" ]; then
@@ -101,4 +108,103 @@ if [ -d "$SHARED_SKILLS" ]; then
     done
 fi
 
-# TODO: Implement sync logic
+# --- Sync Logic ---
+
+if [ "$VERBOSE" = true ]; then
+    echo "Starting sync process..."
+fi
+
+# Function to safely symlink
+safe_symlink() {
+    local source="$1"
+    local dest="$2"
+    local dest_dir=$(dirname "$dest")
+    
+    if [ "$VERBOSE" = true ]; then
+         echo "Symlink: $source -> $dest"
+    fi
+
+    if [ "$DRY_RUN" = true ]; then
+        return
+    fi
+
+    # Backup if destination exists and is a regular file (not a symlink)
+    if [ -f "$dest" ] && [ ! -L "$dest" ]; then
+        local timestamp=$(date +%Y%m%d%H%M%S)
+        local backup_path="${BACKUP_DIR}/$(basename "$dest")_${timestamp}"
+        mkdir -p "$BACKUP_DIR"
+        
+        echo "WARNING: $dest already exists as a regular file."
+        local confirm=""
+        if [ "$AUTO_CONFIRM" = true ]; then
+            confirm="y"
+        else
+            read -p "Backup and replace with symlink? [y/N] " confirm
+        fi
+
+        if [[ "$confirm" =~ ^[Yy]$ ]]; then
+            cp "$dest" "$backup_path"
+            echo "Backed up: $dest -> $backup_path"
+        else
+            echo "Skipping: $dest"
+            return
+        fi
+    fi
+
+    mkdir -p "$dest_dir"
+    ln -sf "$source" "$dest"
+}
+
+# 1. Sync Built Shared Files (build/gemini/* -> ~/.gemini/skills/*)
+for agent in gemini claude; do
+    build_subdir="$BUILD_DIR/$agent"
+    if [ -d "$build_subdir" ]; then
+        agent_dot_folder=".$agent"
+        [ "$agent" == "claude" ] && agent_dot_folder=".claudebot"
+        
+        find "$build_subdir" -type f -not -name ".gitkeep" | while read source_file; do
+            filename=$(basename "$source_file")
+            target_dest="$TARGET_ROOT/$agent_dot_folder/skills/$filename"
+            safe_symlink "$(readlink -f "$source_file")" "$target_dest"
+        done
+    fi
+done
+
+# 2. Sync Agent-Specific Files (agents/gemini/* -> ~/.gemini/*)
+if [ -d "$AGENTS_DIR" ]; then
+    find "$AGENTS_DIR" -type f -not -name ".gitkeep" | while read source_file; do
+        inferred_path="${source_file#$AGENTS_DIR/}"
+        agent_name=$(echo "$inferred_path" | cut -d'/' -f1)
+        relative_path="${inferred_path#$agent_name/}"
+        
+        target_dest="$TARGET_ROOT/.$agent_name/$relative_path"
+        if [ "$agent_name" == "claude" ]; then
+             target_dest="$TARGET_ROOT/.claudebot/$relative_path"
+        fi
+
+        safe_symlink "$(readlink -f "$source_file")" "$target_dest"
+    done
+fi
+
+# --- Cleanup Logic ---
+if [ "$CLEAN" = true ]; then
+    echo "Pruning broken symlinks in $TARGET_ROOT..."
+    # Simple cleanup for .gemini and .claudebot
+    for folder in .gemini .claudebot; do
+        if [ -d "$TARGET_ROOT/$folder" ]; then
+            find "$TARGET_ROOT/$folder" -xtype l | while read broken_link; do
+                local confirm=""
+                if [ "$AUTO_CONFIRM" = true ]; then
+                    confirm="y"
+                else
+                    read -p "Remove broken symlink $broken_link? [y/N] " confirm
+                fi
+
+                if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                    rm "$broken_link"
+                    echo "Removed: $broken_link"
+                fi
+            done
+        fi
+    done
+fi
