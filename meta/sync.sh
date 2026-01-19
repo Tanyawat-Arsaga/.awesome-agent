@@ -86,6 +86,44 @@ get_abs_path() {
 
 # --- Transformation Logic ---
 
+# Superpowers Integration
+SUPERPOWERS_SKILLS="./external/superpowers/skills"
+
+if [ -d "$SUPERPOWERS_SKILLS" ]; then
+    if [ "$VERBOSE" = true ]; then
+        echo "Processing Superpowers skills..."
+    fi
+    # Iterate through each skill directory
+    for skill_dir in "$SUPERPOWERS_SKILLS"/*; do
+        if [ -d "$skill_dir" ]; then
+            skill_name=$(basename "$skill_dir")
+            skill_file="$skill_dir/SKILL.md"
+            
+            if [ -f "$skill_file" ]; then
+                # Gemini (Markdown copy with prefix)
+                gemini_target="$BUILD_DIR/gemini/superpowers-${skill_name}.md"
+                if [ "$DRY_RUN" = true ]; then
+                    [ "$VERBOSE" = true ] && echo "[Dry Run] Would compile: $skill_file -> $gemini_target"
+                else
+                    cp "$skill_file" "$gemini_target"
+                    [ "$VERBOSE" = true ] && echo "Compiled: $gemini_target"
+                fi
+                
+                # Claude (XML wrap with prefix)
+                claude_target="$BUILD_DIR/claude/superpowers-${skill_name}.xml"
+                if [ "$DRY_RUN" = true ]; then
+                    [ "$VERBOSE" = true ] && echo "[Dry Run] Would compile: $skill_file -> $claude_target"
+                else
+                    echo "<skill name=\"superpowers-${skill_name}\">" > "$claude_target"
+                    cat "$skill_file" >> "$claude_target"
+                    echo "</skill>" >> "$claude_target"
+                    [ "$VERBOSE" = true ] && echo "Compiled: $claude_target"
+                fi
+            fi
+        fi
+    done
+fi
+
 # Gemini Transformation (Markdown pass-through)
 if [ -d "$SHARED_SKILLS" ]; then
     if [ "$VERBOSE" = true ]; then

@@ -9,3 +9,6 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [x] **Track: Migrate existing configurations**
   *Link: [./tracks/migration_20260119/](./tracks/migration_20260119/)*
+
+- [ ] **Track: Add Superpowers Skills**
+  *Link: [./tracks/add_superpowers_20260119/](./tracks/add_superpowers_20260119/)*
