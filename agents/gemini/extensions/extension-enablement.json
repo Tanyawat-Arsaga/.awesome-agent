@@ -1,0 +1,12 @@
+{
+  "gemini-cli-ralph": {
+    "overrides": [
+      "/Users/vittayapalotai.tanyawat/*"
+    ]
+  },
+  "conductor": {
+    "overrides": [
+      "/Users/vittayapalotai.tanyawat/*"
+    ]
+  }
+}

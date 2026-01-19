@@ -6,3 +6,6 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [x] **Track: Build the core sync engine**
   *Link: [./tracks/core_sync_engine_20260119/](./tracks/core_sync_engine_20260119/)*
+
+- [ ] **Track: Migrate existing configurations**
+  *Link: [./tracks/migration_20260119/](./tracks/migration_20260119/)*

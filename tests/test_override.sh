@@ -32,6 +32,14 @@ test_override() {
         echo "FAIL: Shared content was used instead of override"
         exit 1
     fi
+    
+    # Check .claude folder existence
+    if [ -d "$HOME_MOCK/.claude" ]; then
+         echo "PASS: .claude folder created"
+    else
+         echo "FAIL: .claude folder not created"
+         exit 1
+    fi
 }
 
 # Run tests

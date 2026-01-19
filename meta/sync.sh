@@ -184,12 +184,13 @@ for agent in gemini claude; do
     build_subdir="$BUILD_DIR/$agent"
     if [ -d "$build_subdir" ]; then
         agent_dot_folder=".$agent"
-        [ "$agent" == "claude" ] && agent_dot_folder=".claudebot"
+        [ "$agent" == "claude" ] && agent_dot_folder=".claude"
         
         find "$build_subdir" -type f -not -name ".gitkeep" | while read source_file; do
             filename=$(basename "$source_file")
             target_dest="$TARGET_ROOT/$agent_dot_folder/skills/$filename"
             safe_symlink "$(get_abs_path "$source_file")" "$target_dest"
+        
         done
     fi
 done
@@ -203,11 +204,18 @@ if [ -d "$AGENTS_DIR" ]; then
         
         target_dest="$TARGET_ROOT/.$agent_name/$relative_path"
         if [ "$agent_name" == "claude" ]; then
-             target_dest="$TARGET_ROOT/.claudebot/$relative_path"
+             target_dest="$TARGET_ROOT/.claude/$relative_path"
         fi
 
         safe_symlink "$(get_abs_path "$source_file")" "$target_dest"
     done
+fi
+
+# 3. Sync Core Profile
+CORE_PROFILE="./shared/core_profile.md"
+if [ -f "$CORE_PROFILE" ]; then
+    safe_symlink "$(get_abs_path "$CORE_PROFILE")" "$TARGET_ROOT/.gemini/GEMINI.md"
+    safe_symlink "$(get_abs_path "$CORE_PROFILE")" "$TARGET_ROOT/.claude/CLAUDE.md"
 fi
 
 # --- Cleanup Logic ---
@@ -216,9 +224,9 @@ if [ "$CLEAN" = true ]; then
 
     echo "Pruning broken symlinks in $TARGET_ROOT..."
 
-    # Simple cleanup for .gemini and .claudebot
+    # Simple cleanup for .gemini and .claude
 
-    for folder in .gemini .claudebot; do
+    for folder in .gemini .claude; do
 
         if [ -d "$TARGET_ROOT/$folder" ]; then
 
