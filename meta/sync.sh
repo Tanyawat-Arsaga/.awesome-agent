@@ -93,79 +93,53 @@ if [ -d "$SUPERPOWERS_SKILLS" ]; then
     if [ "$VERBOSE" = true ]; then
         echo "Processing Superpowers skills..."
     fi
-    # Iterate through each skill directory
     for skill_dir in "$SUPERPOWERS_SKILLS"/*; do
         if [ -d "$skill_dir" ]; then
             skill_name=$(basename "$skill_dir")
             skill_file="$skill_dir/SKILL.md"
             
             if [ -f "$skill_file" ]; then
-                # Gemini (Markdown copy with prefix)
-                gemini_target="$BUILD_DIR/gemini/superpowers-${skill_name}.md"
-                if [ "$DRY_RUN" = true ]; then
-                    [ "$VERBOSE" = true ] && echo "[Dry Run] Would compile: $skill_file -> $gemini_target"
-                else
-                    cp "$skill_file" "$gemini_target"
-                    [ "$VERBOSE" = true ] && echo "Compiled: $gemini_target"
-                fi
+                new_skill_name="superpowers-${skill_name}"
                 
-                # Claude (XML wrap with prefix)
-                claude_target="$BUILD_DIR/claude/superpowers-${skill_name}.xml"
-                if [ "$DRY_RUN" = true ]; then
-                    [ "$VERBOSE" = true ] && echo "[Dry Run] Would compile: $skill_file -> $claude_target"
-                else
-                    echo "<skill name=\"superpowers-${skill_name}\">" > "$claude_target"
-                    cat "$skill_file" >> "$claude_target"
-                    echo "</skill>" >> "$claude_target"
-                    [ "$VERBOSE" = true ] && echo "Compiled: $claude_target"
-                fi
+                for agent in gemini claude; do
+                    target_dir="$BUILD_DIR/$agent/skills/$new_skill_name"
+                    mkdir -p "$target_dir"
+                    target_file="$target_dir/SKILL.md"
+                    
+                    if [ "$DRY_RUN" = true ]; then
+                        [ "$VERBOSE" = true ] && echo "[Dry Run] Would compile: $skill_file -> $target_file"
+                    else
+                        cp "$skill_file" "$target_file"
+                        [ "$VERBOSE" = true ] && echo "Compiled: $target_file"
+                    fi
+                done
             fi
         fi
     done
 fi
 
-# Gemini Transformation (Markdown pass-through)
+# Shared Skills (Flat -> Directory)
 if [ -d "$SHARED_SKILLS" ]; then
     if [ "$VERBOSE" = true ]; then
-        echo "Processing shared skills for Gemini..."
+        echo "Processing shared skills..."
     fi
     for file in "$SHARED_SKILLS"/*.md; do
         if [ -f "$file" ]; then
             filename=$(basename "$file")
-            if [ "$DRY_RUN" = true ]; then
-                [ "$VERBOSE" = true ] && echo "[Dry Run] Would compile (Copy): $filename -> $BUILD_DIR/gemini/$filename"
-            else
-                cp "$file" "$BUILD_DIR/gemini/$filename"
-                if [ "$VERBOSE" = true ]; then
-                    echo "Compiled (Copy): $filename -> $BUILD_DIR/gemini/$filename"
-                fi
-            fi
-        fi
-    done
-fi
-
-# Claude Transformation (XML wrapping)
-if [ -d "$SHARED_SKILLS" ]; then
-    if [ "$VERBOSE" = true ]; then
-        echo "Processing shared skills for Claude..."
-    fi
-    for file in "$SHARED_SKILLS"/*.md; do
-        if [ -f "$file" ]; then
-            filename=$(basename "$file")
-            name="${filename%.*}"
-            target="$BUILD_DIR/claude/${name}.xml"
+            skill_name="${filename%.*}"
             
-            if [ "$DRY_RUN" = true ]; then
-                [ "$VERBOSE" = true ] && echo "[Dry Run] Would compile (XML Wrap): $filename -> $target"
-            else
-                echo "<skill name=\"$name\">" > "$target"
-                cat "$file" >> "$target"
-                echo "</skill>" >> "$target"
+            for agent in gemini claude; do
+                target_dir="$BUILD_DIR/$agent/skills/$skill_name"
+                mkdir -p "$target_dir"
+                target_file="$target_dir/SKILL.md"
                 
-                if [ "$VERBOSE" = true ]; then
-                    echo "Compiled (XML Wrap): $filename -> $target"
+                if [ "$DRY_RUN" = true ]; then
+                    [ "$VERBOSE" = true ] && echo "[Dry Run] Would compile: $file -> $target_file"
+                else
+                    cp "$file" "$target_file"
+                    [ "$VERBOSE" = true ] && echo "Compiled: $target_file"
                 fi
-            fi
+            done
         fi
     done
 fi
@@ -224,18 +198,19 @@ for agent in gemini claude; do
         agent_dot_folder=".$agent"
         [ "$agent" == "claude" ] && agent_dot_folder=".claude"
         
-        find "$build_subdir" -type f -not -name ".gitkeep" | while read source_file; do
-            filename=$(basename "$source_file")
-            target_dest="$TARGET_ROOT/$agent_dot_folder/skills/$filename"
+        # Find files but exclude .git directory and .DS_Store
+        find "$build_subdir" -name ".git" -prune -o -name ".DS_Store" -prune -o -type f -not -name ".gitkeep" -print | while read source_file; do
+            relative_path="${source_file#$build_subdir/}"
+            target_dest="$TARGET_ROOT/$agent_dot_folder/$relative_path"
             safe_symlink "$(get_abs_path "$source_file")" "$target_dest"
-        
         done
     fi
 done
 
 # 2. Sync Agent-Specific Files (agents/gemini/* -> ~/.gemini/*)
 if [ -d "$AGENTS_DIR" ]; then
-    find "$AGENTS_DIR" -type f -not -name ".gitkeep" | while read source_file; do
+    # Find files but exclude .git directory and .DS_Store
+    find "$AGENTS_DIR" -name ".git" -prune -o -name ".DS_Store" -prune -o -type f -not -name ".gitkeep" -print | while read source_file; do
         inferred_path="${source_file#$AGENTS_DIR/}"
         agent_name=$(echo "$inferred_path" | cut -d'/' -f1)
         relative_path="${inferred_path#$agent_name/}"

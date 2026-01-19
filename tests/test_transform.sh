@@ -12,30 +12,38 @@ SHARED_DIR="./shared/skills"
 mkdir -p "$SHARED_DIR"
 echo "# Test Skill" > "$SHARED_DIR/test_skill.md"
 
-# Test Gemini Transformation (Markdown pass-through)
+# Test Gemini Transformation (Directory Structure)
 test_gemini_transform() {
     echo "Testing Gemini transformation..."
-    # Mocking the transform logic for now, expecting the script to handle it
-    # We need to run the sync script to trigger the build
     $SYNC_SCRIPT --verbose
     
-    if [ -f "$BUILD_DIR/gemini/test_skill.md" ]; then
-        echo "PASS: Gemini file created"
+    if [ -f "$BUILD_DIR/gemini/skills/test_skill/SKILL.md" ]; then
+        echo "PASS: Gemini file created in directory structure"
     else
         echo "FAIL: Gemini file not created"
+        ls -R "$BUILD_DIR/gemini"
         exit 1
     fi
 }
 
-# Test Claude Transformation (XML wrapping)
+# Test Claude Transformation (Directory Structure, No XML)
 test_claude_transform() {
     echo "Testing Claude transformation..."
     $SYNC_SCRIPT --verbose
     
-    if [ -f "$BUILD_DIR/claude/test_skill.xml" ]; then
-        echo "PASS: Claude file created"
+    if [ -f "$BUILD_DIR/claude/skills/test_skill/SKILL.md" ]; then
+        echo "PASS: Claude file created in directory structure"
+        # Check content to ensure no XML wrapping (simple check if it starts with # Test Skill)
+        if grep -q "# Test Skill" "$BUILD_DIR/claude/skills/test_skill/SKILL.md"; then
+             echo "PASS: Claude file content is correct (Markdown)"
+        else
+             echo "FAIL: Claude file content is incorrect"
+             cat "$BUILD_DIR/claude/skills/test_skill/SKILL.md"
+             exit 1
+        fi
     else
         echo "FAIL: Claude file not created"
+        ls -R "$BUILD_DIR/claude"
         exit 1
     fi
 }
@@ -44,4 +52,4 @@ test_claude_transform() {
 test_gemini_transform
 test_claude_transform
 
-echo "Tests ready for implementation"
+echo "Transformation tests passed"

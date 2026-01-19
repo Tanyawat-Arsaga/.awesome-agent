@@ -12,3 +12,6 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [x] **Track: Add Superpowers Skills**
   *Link: [./tracks/add_superpowers_20260119/](./tracks/add_superpowers_20260119/)*
+
+- [ ] **Track: Fix Skill Structure & Format**
+  *Link: [./tracks/fix_gemini_skills_20260119/](./tracks/fix_gemini_skills_20260119/)*
