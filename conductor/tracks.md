@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Build the core sync engine**
+- [x] **Track: Build the core sync engine**
   *Link: [./tracks/core_sync_engine_20260119/](./tracks/core_sync_engine_20260119/)*
