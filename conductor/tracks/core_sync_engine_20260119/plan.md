@@ -15,9 +15,9 @@
 - [x] Task: Implement directory inference logic (agents/ -> home) 0366387
 - [x] Task: Implement safety check and backup logic (`.backup/` with timestamp) 0366387
 - [x] Task: Implement symlinking logic for agent-specific and built shared files 0366387
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Sync Engine & Symlinking' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Sync Engine & Symlinking' (Protocol in workflow.md) 8ffad07
 
-## Phase 4: Cleanup & Polishing
-- [ ] Task: Implement interactive cleanup logic for broken/orphaned links
-- [ ] Task: Final cross-platform testing and verbose logging refinement
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: Cleanup & Polishing' (Protocol in workflow.md)
+## Phase 4: Cleanup & Polishing [checkpoint: 5610023]
+- [x] Task: Implement interactive cleanup logic for broken/orphaned links 5610023
+- [x] Task: Final cross-platform testing and verbose logging refinement 5610023
+- [x] Task: Conductor - User Manual Verification 'Phase 4: Cleanup & Polishing' (Protocol in workflow.md) 5610023
