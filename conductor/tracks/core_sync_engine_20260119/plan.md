@@ -5,11 +5,11 @@
 - [x] Task: Initialize `meta/sync.sh` with basic argument parsing (verbose, dry-run, clean) 80d39e4
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Foundation & Structure' (Protocol in workflow.md) 0c8cdd8
 
-## Phase 2: Compiler & Transformation
+## Phase 2: Compiler & Transformation [checkpoint: 20bbb6e]
 - [x] Task: Implement transformation logic for Gemini (Markdown pass-through) 7a4861d
 - [x] Task: Implement transformation logic for Claude (XML wrapping) 864eb3d
 - [x] Task: Implement the build process to output to `build/` directory 864eb3d
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Compiler & Transformation' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Compiler & Transformation' (Protocol in workflow.md) 20bbb6e
 
 ## Phase 3: Sync Engine & Symlinking
 - [ ] Task: Implement directory inference logic (agents/ -> home)
