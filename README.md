@@ -37,7 +37,34 @@ To deploy your configurations to the home directory (`~/.gemini` and `~/.claude`
 ## Development
 
 ### Adding a Skill
-Place your flat Markdown skill in `shared/skills/`. The sync script will automatically create the required `skills/<name>/SKILL.md` structure during deployment.
+Place your skill directory in `.agent/skills/<name>/`. Each skill must contain a `SKILL.md` file.
+
+If your skill has multiple rules, you can place them in a `rules/` subfolder. The sync script will automatically stitch them into the main `SKILL.md` during synchronization.
+
+### Adding External Skills
+You can add skills from external repositories using the `meta/add-skill.sh` script:
+
+```bash
+./meta/add-skill.sh elysiajs/skills elysia
+```
+
+This will vendor the skill into `external/elysia` and automatically symlink it into `.agent/skills/elysia-skills`.
 
 ### Modifying Persona
 Update `shared/core_profile.md`. Changes will be synced to both agents on the next run.
+
+## Inspiration & Target Use Cases
+
+We aim for "one-shot" efficiency like the Elysiajs skills ecosystem:
+
+```bash
+$ bun create elysia app && cd app
+$ bunx skills add elysiajs/skills
+$ /claude
+$ /init
+> Create Elysia book renting service CRUD in-memory
+> Add OpenAPI documentation to Elysia
+```
+
+*One shot, works perfectly.*
+

@@ -1,286 +1,185 @@
 #!/bin/bash
-
-# sync.sh - AI Agent Config Manager Sync Script
+# meta/sync.sh - Standardized Sync Engine (OpenSkills Compatible)
 
 set -e
 
-VERBOSE=false
-DRY_RUN=false
-CLEAN=false
-AUTO_CONFIRM=false
-
-usage() {
-    echo "Usage: $0 [options]"
-    echo "Options:"
-    echo "  -v, --verbose  Enable verbose output"
-    echo "  -d, --dry-run  Show actions without making changes"
-    echo "  -c, --clean    Interactively clean up broken symlinks"
-    echo "  -y, --yes      Auto-confirm all prompts (backups, cleanup)"
-    echo "  -h, --help     Show this help message"
-    exit 1
-}
-
-# Parse arguments
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        -v|--verbose)
-            VERBOSE=true
-            shift
-            ;;
-        -d|--dry-run)
-            DRY_RUN=true
-            shift
-            ;;
-        -c|--clean)
-            CLEAN=true
-            shift
-            ;;
-        -y|--yes)
-            AUTO_CONFIRM=true
-            shift
-            ;;
-        -h|--help)
-            usage
-            ;;
-        *)
-            echo "Unknown option: $1"
-            usage
-            ;;
-    esac
-done
 # Configuration
-BUILD_DIR="./build"
+TARGET_ROOT="${TARGET_ROOT:-$HOME}"
 SHARED_SKILLS="./shared/skills"
 AGENTS_DIR="./agents"
-TARGET_ROOT="${TARGET_ROOT:-$HOME}"
-BACKUP_DIR="${TARGET_ROOT}/.agent_config_backups"
+AGENTS_MD="./shared/AGENTS.md"
+CORE_PROFILE="./shared/core_profile.md"
+VERBOSE=false
+CLEAN=false
+YES=false
 
-if [ "$VERBOSE" = true ]; then
-    echo "Verbose mode enabled."
-    echo "Target Root: $TARGET_ROOT"
-fi
-
-if [ "$DRY_RUN" = true ]; then
-    echo "Dry run mode enabled. No changes will be made."
-fi
-
-if [ "$CLEAN" = true ]; then
-    echo "Clean mode enabled. Interactive cleanup will be performed."
-fi
-
-# Ensure build directories exist
-mkdir -p "$BUILD_DIR/gemini"
-mkdir -p "$BUILD_DIR/claude"
-
-# --- Utilities ---
-
-# Portable way to get absolute path
-get_abs_path() {
-    local path="$1"
-    if [[ "$path" == /* ]]; then
-        echo "$path"
-    else
-        echo "$(pwd)/${path#./}"
-    fi
-}
-
-# --- Transformation Logic ---
-
-# Superpowers Integration
-SUPERPOWERS_SKILLS="./external/superpowers/skills"
-
-if [ -d "$SUPERPOWERS_SKILLS" ]; then
-    if [ "$VERBOSE" = true ]; then
-        echo "Processing Superpowers skills..."
-    fi
-    for skill_dir in "$SUPERPOWERS_SKILLS"/*; do
-        if [ -d "$skill_dir" ]; then
-            skill_name=$(basename "$skill_dir")
-            skill_file="$skill_dir/SKILL.md"
-            
-            if [ -f "$skill_file" ]; then
-                new_skill_name="superpowers-${skill_name}"
-                
-                for agent in gemini claude; do
-                    target_dir="$BUILD_DIR/$agent/skills/$new_skill_name"
-                    mkdir -p "$target_dir"
-                    target_file="$target_dir/SKILL.md"
-                    
-                    if [ "$DRY_RUN" = true ]; then
-                        [ "$VERBOSE" = true ] && echo "[Dry Run] Would compile: $skill_file -> $target_file"
-                    else
-                        cp "$skill_file" "$target_file"
-                        [ "$VERBOSE" = true ] && echo "Compiled: $target_file"
-                    fi
-                done
-            fi
-        fi
-    done
-fi
-
-# Shared Skills (Flat -> Directory)
-if [ -d "$SHARED_SKILLS" ]; then
-    if [ "$VERBOSE" = true ]; then
-        echo "Processing shared skills..."
-    fi
-    for file in "$SHARED_SKILLS"/*.md; do
-        if [ -f "$file" ]; then
-            filename=$(basename "$file")
-            skill_name="${filename%.*}"
-            
-            for agent in gemini claude; do
-                target_dir="$BUILD_DIR/$agent/skills/$skill_name"
-                mkdir -p "$target_dir"
-                target_file="$target_dir/SKILL.md"
-                
-                if [ "$DRY_RUN" = true ]; then
-                    [ "$VERBOSE" = true ] && echo "[Dry Run] Would compile: $file -> $target_file"
-                else
-                    cp "$file" "$target_file"
-                    [ "$VERBOSE" = true ] && echo "Compiled: $target_file"
-                fi
-            done
-        fi
-    done
-fi
-
-# --- Sync Logic ---
-
-if [ "$VERBOSE" = true ]; then
-    echo "Starting sync process..."
-fi
-
-# Function to safely symlink
-safe_symlink() {
-    local source="$1"
-    local dest="$2"
-    local dest_dir=$(dirname "$dest")
-    
-    if [ "$VERBOSE" = true ]; then
-         echo "Symlink: $source -> $dest"
-    fi
-
-    if [ "$DRY_RUN" = true ]; then
-        return
-    fi
-
-    # Backup if destination exists and is a regular file (not a symlink)
-    if [ -f "$dest" ] && [ ! -L "$dest" ]; then
-        local timestamp=$(date +%Y%m%d%H%M%S)
-        local backup_path="${BACKUP_DIR}/$(basename "$dest")_${timestamp}"
-        mkdir -p "$BACKUP_DIR"
-        
-        echo "WARNING: $dest already exists as a regular file."
-        local confirm=""
-        if [ "$AUTO_CONFIRM" = true ]; then
-            confirm="y"
-        else
-            read -p "Backup and replace with symlink? [y/N] " confirm
-        fi
-
-        if [[ "$confirm" =~ ^[Yy]$ ]]; then
-            cp "$dest" "$backup_path"
-            echo "Backed up: $dest -> $backup_path"
-        else
-            echo "Skipping: $dest"
-            return
-        fi
-    fi
-
-    mkdir -p "$dest_dir"
-    ln -sf "$source" "$dest"
-}
-
-# 1. Sync Built Shared Files (build/gemini/* -> ~/.gemini/skills/*)
-for agent in gemini claude; do
-    build_subdir="$BUILD_DIR/$agent"
-    if [ -d "$build_subdir" ]; then
-        agent_dot_folder=".$agent"
-        [ "$agent" == "claude" ] && agent_dot_folder=".claude"
-        
-        # Find files but exclude .git directory and .DS_Store
-        find "$build_subdir" -name ".git" -prune -o -name ".DS_Store" -prune -o -type f -not -name ".gitkeep" -print | while read source_file; do
-            relative_path="${source_file#$build_subdir/}"
-            target_dest="$TARGET_ROOT/$agent_dot_folder/$relative_path"
-            safe_symlink "$(get_abs_path "$source_file")" "$target_dest"
-        done
-    fi
+# Parse arguments
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        -v|--verbose) VERBOSE=true ;;
+        -c|--clean) CLEAN=true ;;
+        -y|--yes) YES=true ;;
+        *) echo "Unknown parameter: $1"; exit 1 ;;
+    esac
+    shift
 done
 
-# 2. Sync Agent-Specific Files (agents/gemini/* -> ~/.gemini/*)
-if [ -d "$AGENTS_DIR" ]; then
-    # Find files but exclude .git directory and .DS_Store
-    find "$AGENTS_DIR" -name ".git" -prune -o -name ".DS_Store" -prune -o -type f -not -name ".gitkeep" -print | while read source_file; do
-        inferred_path="${source_file#$AGENTS_DIR/}"
-        agent_name=$(echo "$inferred_path" | cut -d'/' -f1)
-        relative_path="${inferred_path#$agent_name/}"
+log() {
+    if [ "$VERBOSE" = true ]; then
+        echo "$1"
+    fi
+}
+
+echo "Standardizing skills..."
+
+# 1. Ensure openskills is available
+if ! command -v npx &> /dev/null; then
+    echo "Error: npx not found. Node.js is required for openskills compatibility."
+    exit 1
+fi
+
+# 2. Local BUILD directory for intermediate state (to avoid polluting repo)
+# Use the project's temporary directory if provided, otherwise a local .build
+BUILD_DIR="${PROJECT_TEMP_DIR:-./.build}/skills"
+rm -rf "$BUILD_DIR"
+mkdir -p "$BUILD_DIR"
+
+# 3. Helper to process skills into OpenSkills format
+process_skill_dir() {
+    local src=$1
+    local dest_root=$2
+    
+    find "$src" -maxdepth 1 -mindepth 1 | while read skill_path; do
+        local skill_name=$(basename "$skill_path")
         
-        target_dest="$TARGET_ROOT/.$agent_name/$relative_path"
-        if [ "$agent_name" == "claude" ]; then
-             target_dest="$TARGET_ROOT/.claude/$relative_path"
+        if [ -d "$skill_path" ]; then
+            # Directory-based skill
+            log "Processing directory skill: $skill_name"
+            mkdir -p "$dest_root/$skill_name"
+            rsync -aK "$skill_path/" "$dest_root/$skill_name/"
+            
+            # Stitch modular rules if present
+            if [ -d "$dest_root/$skill_name/rules" ]; then
+                local skill_file="$dest_root/$skill_name/SKILL.md"
+                if [ -f "$skill_file" ]; then
+                    log "  Stitching rules for $skill_name..."
+                    sed -n '1,/---/p' "$skill_file" > "$skill_file.tmp"
+                    cat "$dest_root/$skill_name/rules"/*.md >> "$skill_file.tmp" 2>/dev/null || true
+                    mv "$skill_file.tmp" "$skill_file"
+                fi
+            fi
+        elif [[ "$skill_path" == *.md ]]; then
+            # Flat file skill -> convert to directory
+            local name_no_ext="${skill_name%.md}"
+            log "Processing flat skill: $name_no_ext"
+            mkdir -p "$dest_root/$name_no_ext"
+            cp "$skill_path" "$dest_root/$name_no_ext/SKILL.md"
         fi
-
-        safe_symlink "$(get_abs_path "$source_file")" "$target_dest"
     done
+}
+
+# 4. Process Shared Skills
+if [ -d "$SHARED_SKILLS" ]; then
+    log "Processing shared skills..."
+    process_skill_dir "$SHARED_SKILLS" "$BUILD_DIR"
 fi
 
-# 3. Sync Core Profile
-CORE_PROFILE="./shared/core_profile.md"
+# 5. Use openskills to sync the index into AGENTS.md
+# We do this BEFORE agent-specific overrides so the index reflects the "Universal" set
+# or we could do it after, but shared is usually the source of truth for the index.
+
+# 5.1 Refresh AGENTS.md with Core Profile first
 if [ -f "$CORE_PROFILE" ]; then
-    safe_symlink "$(get_abs_path "$CORE_PROFILE")" "$TARGET_ROOT/.gemini/GEMINI.md"
-    safe_symlink "$(get_abs_path "$CORE_PROFILE")" "$TARGET_ROOT/.claude/CLAUDE.md"
+    log "Merging $CORE_PROFILE into $AGENTS_MD..."
+    if grep -q "# SKILLS SYSTEM" "$AGENTS_MD"; then
+        sed -n '/# SKILLS SYSTEM/,$p' "$AGENTS_MD" > "$AGENTS_MD.tmp"
+        cat "$CORE_PROFILE" > "$AGENTS_MD"
+        echo "" >> "$AGENTS_MD"
+        cat "$AGENTS_MD.tmp" >> "$AGENTS_MD"
+        rm "$AGENTS_MD.tmp"
+    else
+        cat "$CORE_PROFILE" > "$AGENTS_MD"
+        echo "" >> "$AGENTS_MD"
+        echo "# SKILLS SYSTEM" >> "$AGENTS_MD"
+        echo '<skills_system priority="1">' >> "$AGENTS_MD"
+        echo "" >> "$AGENTS_MD"
+        echo "## Available Skills" >> "$AGENTS_MD"
+        echo "" >> "$AGENTS_MD"
+        echo "<!-- SKILLS_TABLE_START -->" >> "$AGENTS_MD"
+        echo "<!-- SKILLS_TABLE_END -->" >> "$AGENTS_MD"
+        echo "" >> "$AGENTS_MD"
+        echo "</skills_system>" >> "$AGENTS_MD"
+    fi
 fi
 
-# --- Cleanup Logic ---
+log "Syncing index into AGENTS.md..."
+# We point openskills to our build dir for indexing
+# BUT openskills sync usually looks at the current project's .agent/skills
+# Let's temporarily symlink .agent/skills to BUILD_DIR for the sync
+mkdir -p .agent
+ln -sf "$(pwd)/$BUILD_DIR" .agent/skills
+OPENSKILLS_ARGS="-o $AGENTS_MD"
+if [ "$YES" = true ]; then
+    OPENSKILLS_ARGS="$OPENSKILLS_ARGS -y"
+fi
+npx openskills sync $OPENSKILLS_ARGS
+rm .agent/skills
+rmdir .agent 2>/dev/null || true
 
-if [ "$CLEAN" = true ]; then
+# 6. Deploy to Home
+echo "Deploying to $TARGET_ROOT/.agent/skills/..."
+mkdir -p "$TARGET_ROOT/.agent/skills"
+rsync -aKq --delete "$BUILD_DIR/" "$TARGET_ROOT/.agent/skills/"
 
-    echo "Pruning broken symlinks in $TARGET_ROOT..."
-
-    # Simple cleanup for .gemini and .claude
-
-    for folder in .gemini .claude; do
-
-        if [ -d "$TARGET_ROOT/$folder" ]; then
-
-            # Portable way to find broken symlinks:
-
-            # find all links, then check if they exist. ! -e means broken.
-
-                        find "$TARGET_ROOT/$folder" -type l | while read broken_link; do
-
-                            if [ ! -e "$broken_link" ]; then
-
-                                confirm=""
-
-                                if [ "$AUTO_CONFIRM" = true ]; then
-
-                                    confirm="y"
-
-                                else
-
-                                    read -p "Remove broken symlink $broken_link? [y/N] " confirm
-
-                                fi
-
+# 7. Agent-Specific Deployment (Overrides & Legacy)
+for agent in gemini claude; do
+    log "Deploying for $agent..."
+    mkdir -p "$TARGET_ROOT/.$agent"
+    
+    # 7.1 Link Universal Prompt
+    agent_upper=$(echo "$agent" | tr '[:lower:]' '[:upper:]')
+    ln -sf "$(pwd)/$AGENTS_MD" "$TARGET_ROOT/.$agent/${agent_upper}.md"
+    
+    # 7.2 Sync agent-specific files (overrides)
+    if [ -d "$AGENTS_DIR/$agent" ]; then
+        # Exclude 'skills' from general rsync as we handle it specifically
+        rsync -aKq --exclude ".git" --exclude "skills" "$AGENTS_DIR/$agent/" "$TARGET_ROOT/.$agent/"
+        
+        # 7.3 Agent-Specific Skills (Overrides)
+        if [ -d "$AGENTS_DIR/$agent/skills" ]; then
+            log "  Processing agent-specific skills for $agent..."
+            # Create a temp dir for this agent's processed skills
+            AGENT_BUILD_DIR=".build/skills_$agent"
+            mkdir -p "$AGENT_BUILD_DIR"
+            process_skill_dir "$AGENTS_DIR/$agent/skills" "$AGENT_BUILD_DIR"
             
-
-                                if [[ "$confirm" =~ ^[Yy]$ ]]; then
-
-                                    rm "$broken_link"
-
-                                    echo "Removed: $broken_link"
-
-                                fi
-
-                            fi
-
-                        done
-
-            
-
+            # Sync to home (overwriting shared ones if name matches)
+            rsync -aKq "$AGENT_BUILD_DIR/" "$TARGET_ROOT/.agent/skills/"
+            rm -rf "$AGENT_BUILD_DIR"
         fi
-
+    fi
+    
+    # 7.4 Maintain Legacy Symlinks
+    log "  Maintaining legacy symlinks for $agent..."
+    mkdir -p "$TARGET_ROOT/.$agent/skills"
+    find "$TARGET_ROOT/.agent/skills" -maxdepth 1 -mindepth 1 -type d | while read skill_path; do
+        skill_name=$(basename "$skill_path")
+        ln -sf "$skill_path" "$TARGET_ROOT/.$agent/skills/$skill_name"
+        
+        if [ "$agent" == "gemini" ]; then
+            ln -sf "$skill_path/SKILL.md" "$TARGET_ROOT/.$agent/$skill_name.md"
+        else
+            ln -sf "$skill_path/SKILL.md" "$TARGET_ROOT/.$agent/$skill_name.xml"
+        fi
     done
+done
 
+# Cleanup local build if it's not in temp
+if [[ "$BUILD_DIR" == .build* ]]; then
+    rm -rf .build
 fi
+
+echo "---"
+echo "Sync complete. All skills unified in shared/skills and agents/*/skills."
+echo "Index location: $AGENTS_MD"
+echo "Skill store: $TARGET_ROOT/.agent/skills/"

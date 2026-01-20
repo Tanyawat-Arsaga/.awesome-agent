@@ -108,6 +108,90 @@ Usage notes:
 </skill>
 
 <skill>
+<name>superpowers-brainstorming</name>
+<description>"You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation."</description>
+<location>project</location>
+</skill>
+
+<skill>
+<name>superpowers-dispatching-parallel-agents</name>
+<description>Use when facing 2+ independent tasks that can be worked on without shared state or sequential dependencies</description>
+<location>project</location>
+</skill>
+
+<skill>
+<name>superpowers-executing-plans</name>
+<description>Use when you have a written implementation plan to execute in a separate session with review checkpoints</description>
+<location>project</location>
+</skill>
+
+<skill>
+<name>superpowers-finishing-a-development-branch</name>
+<description>Use when implementation is complete, all tests pass, and you need to decide how to integrate the work - guides completion of development work by presenting structured options for merge, PR, or cleanup</description>
+<location>project</location>
+</skill>
+
+<skill>
+<name>superpowers-receiving-code-review</name>
+<description>Use when receiving code review feedback, before implementing suggestions, especially if feedback seems unclear or technically questionable - requires technical rigor and verification, not performative agreement or blind implementation</description>
+<location>project</location>
+</skill>
+
+<skill>
+<name>superpowers-requesting-code-review</name>
+<description>Use when completing tasks, implementing major features, or before merging to verify work meets requirements</description>
+<location>project</location>
+</skill>
+
+<skill>
+<name>superpowers-subagent-driven-development</name>
+<description>Use when executing implementation plans with independent tasks in the current session</description>
+<location>project</location>
+</skill>
+
+<skill>
+<name>superpowers-systematic-debugging</name>
+<description>Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes</description>
+<location>project</location>
+</skill>
+
+<skill>
+<name>superpowers-test-driven-development</name>
+<description>Use when implementing any feature or bugfix, before writing implementation code</description>
+<location>project</location>
+</skill>
+
+<skill>
+<name>superpowers-using-git-worktrees</name>
+<description>Use when starting feature work that needs isolation from current workspace or before executing implementation plans - creates isolated git worktrees with smart directory selection and safety verification</description>
+<location>project</location>
+</skill>
+
+<skill>
+<name>superpowers-using-superpowers</name>
+<description>Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response including clarifying questions</description>
+<location>project</location>
+</skill>
+
+<skill>
+<name>superpowers-verification-before-completion</name>
+<description>Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always</description>
+<location>project</location>
+</skill>
+
+<skill>
+<name>superpowers-writing-plans</name>
+<description>Use when you have a spec or requirements for a multi-step task, before touching code</description>
+<location>project</location>
+</skill>
+
+<skill>
+<name>superpowers-writing-skills</name>
+<description>Use when creating new skills, editing existing skills, or verifying skills work before deployment</description>
+<location>project</location>
+</skill>
+
+<skill>
 <name>test_skill</name>
 <description></description>
 <location>project</location>
@@ -117,114 +201,6 @@ Usage notes:
 <name>web-design-guidelines</name>
 <description>Review UI code for Web Interface Guidelines compliance. Use when asked to "review my UI", "check accessibility", "audit design", "review UX", or "check my site against best practices".</description>
 <location>project</location>
-</skill>
-
-<skill>
-<name>elysia-elysia</name>
-<description>Expert knowledge for building type-safe, high-performance backend servers with ElysiaJS.</description>
-<location>global</location>
-</skill>
-
-<skill>
-<name>superpowers-brainstorming</name>
-<description>"You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation."</description>
-<location>global</location>
-</skill>
-
-<skill>
-<name>superpowers-dispatching-parallel-agents</name>
-<description>Use when facing 2+ independent tasks that can be worked on without shared state or sequential dependencies</description>
-<location>global</location>
-</skill>
-
-<skill>
-<name>superpowers-executing-plans</name>
-<description>Use when you have a written implementation plan to execute in a separate session with review checkpoints</description>
-<location>global</location>
-</skill>
-
-<skill>
-<name>superpowers-finishing-a-development-branch</name>
-<description>Use when implementation is complete, all tests pass, and you need to decide how to integrate the work - guides completion of development work by presenting structured options for merge, PR, or cleanup</description>
-<location>global</location>
-</skill>
-
-<skill>
-<name>superpowers-receiving-code-review</name>
-<description>Use when receiving code review feedback, before implementing suggestions, especially if feedback seems unclear or technically questionable - requires technical rigor and verification, not performative agreement or blind implementation</description>
-<location>global</location>
-</skill>
-
-<skill>
-<name>superpowers-requesting-code-review</name>
-<description>Use when completing tasks, implementing major features, or before merging to verify work meets requirements</description>
-<location>global</location>
-</skill>
-
-<skill>
-<name>superpowers-subagent-driven-development</name>
-<description>Use when executing implementation plans with independent tasks in the current session</description>
-<location>global</location>
-</skill>
-
-<skill>
-<name>superpowers-systematic-debugging</name>
-<description>Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes</description>
-<location>global</location>
-</skill>
-
-<skill>
-<name>superpowers-test-driven-development</name>
-<description>Use when implementing any feature or bugfix, before writing implementation code</description>
-<location>global</location>
-</skill>
-
-<skill>
-<name>superpowers-using-git-worktrees</name>
-<description>Use when starting feature work that needs isolation from current workspace or before executing implementation plans - creates isolated git worktrees with smart directory selection and safety verification</description>
-<location>global</location>
-</skill>
-
-<skill>
-<name>superpowers-using-superpowers</name>
-<description>Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response including clarifying questions</description>
-<location>global</location>
-</skill>
-
-<skill>
-<name>superpowers-verification-before-completion</name>
-<description>Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always</description>
-<location>global</location>
-</skill>
-
-<skill>
-<name>superpowers-writing-plans</name>
-<description>Use when you have a spec or requirements for a multi-step task, before touching code</description>
-<location>global</location>
-</skill>
-
-<skill>
-<name>superpowers-writing-skills</name>
-<description>Use when creating new skills, editing existing skills, or verifying skills work before deployment</description>
-<location>global</location>
-</skill>
-
-<skill>
-<name>vercel-react-best-practices</name>
-<description>React and Next.js performance optimization guidelines from Vercel Engineering. This skill should be used when writing, reviewing, or refactoring React/Next.js code to ensure optimal performance patterns. Triggers on tasks involving React components, Next.js pages, data fetching, bundle optimization, or performance improvements.</description>
-<location>global</location>
-</skill>
-
-<skill>
-<name>vercel-vercel-deploy-claimable</name>
-<description>Deploy applications and websites to Vercel. Use this skill when the user requests deployment actions such as "Deploy my app", "Deploy this to production", "Create a preview deployment", "Deploy and give me the link", or "Push this live". No authentication required - returns preview URL and claimable deployment link.</description>
-<location>global</location>
-</skill>
-
-<skill>
-<name>vercel-web-design-guidelines</name>
-<description>Review UI code for Web Interface Guidelines compliance. Use when asked to "review my UI", "check accessibility", "audit design", "review UX", or "check my site against best practices".</description>
-<location>global</location>
 </skill>
 
 </available_skills>
