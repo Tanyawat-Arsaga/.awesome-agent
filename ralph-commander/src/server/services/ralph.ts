@@ -5,7 +5,6 @@ import yaml from "js-yaml";
 
 const STATUS_FILE_PATH = join(process.cwd(), ".gemini", "ralph-loop.local.md");
 const LOG_FILE_PATH = join(process.cwd(), "ralph-runner.log");
-const STATS_PATH = join(process.cwd(), ".gemini", "stats.json");
 
 export interface RalphStatus {
   active: boolean;
@@ -18,116 +17,31 @@ export interface RalphStatus {
   model?: string;
   queries?: number;
   phase?: string;
-  is_zombie?: boolean;
-  stats?: {
-    avg_iteration_ms: number;
-    iteration_history: { iteration: number; duration_ms: number; queries: number }[];
-    total_duration_ms: number;
-  };
+  stats?: any;
+  is_zombie?: boolean; // Added for zombie detection
 }
-
-async function loadStats() {
-  try {
-    const data = await readFile(STATS_PATH, "utf-8");
-    return JSON.parse(data || "{}");
-  } catch {
-    return {};
-  }
-}
-
-async function saveStats(stats: any) {
-  try {
-    await Bun.write(STATS_PATH, JSON.stringify(stats, null, 2));
-  } catch (e) {
-    console.error("Failed to save stats:", e);
-  }
-}
-
-let lastIteration = -1;
-let iterationStartTime = Date.now();
 
 export async function getRalphStatus(): Promise<RalphStatus | null> {
   try {
     const content = await readFile(STATUS_FILE_PATH, "utf-8");
     const parts = content.split("---");
     if (parts.length < 3) return null;
-    
     const state = yaml.load(parts[1]) as any;
-    const currentIteration = state.iteration || 0;
-    const currentQueries = state.queries || 0;
-
-    // Handle stats tracking
-    const statsData = await loadStats();
-    if (!statsData.iteration_times) statsData.iteration_times = [];
-    if (!statsData.start_times) statsData.start_times = {};
-
-    if (currentIteration > lastIteration && lastIteration !== -1) {
-      const now = Date.now();
-      const duration = now - iterationStartTime;
-      
-      if (lastIteration >= 0) {
-        const existing = statsData.iteration_times.find((t: any) => t.iteration === lastIteration);
-        if (!existing) {
-          const prevQueries = statsData.queries_at_last_iteration || 0;
-          statsData.iteration_times.push({ 
-            iteration: lastIteration, 
-            duration_ms: duration,
-            queries: Math.max(0, currentQueries - prevQueries)
-          });
-          statsData.queries_at_last_iteration = currentQueries;
-          await saveStats(statsData);
-        }
-      }
-      iterationStartTime = now;
-    }
-    lastIteration = currentIteration;
-    
-    if (!statsData.start_times[currentIteration]) {
-        statsData.start_times[currentIteration] = new Date().toISOString();
-        statsData.queries_at_last_iteration = currentQueries;
-        await saveStats(statsData);
-    }
-
-    let is_zombie = false;
-    if (state.active) {
-      try {
-        const pidFile = join(process.cwd(), ".gemini", "runner.pid");
-        const pid = await readFile(pidFile, "utf-8");
-        if (pid.trim()) {
-          process.kill(parseInt(pid.trim()), 0);
-        } else {
-          is_zombie = true;
-        }
-      } catch (e) {
-        is_zombie = true;
-      }
-    }
-
-    const avgIter = statsData.iteration_times.length > 0
-        ? statsData.iteration_times.reduce((acc: number, curr: any) => acc + curr.duration_ms, 0) / statsData.iteration_times.length
-        : 0;
-
     return {
       active: state.active || false,
-      iteration: currentIteration,
+      iteration: state.iteration || 0,
       max_iterations: state.max_iterations || 0,
       completion_promise: state.completion_promise || "",
       started_at: state.started_at || "",
       prompt: parts.slice(2).join("---").trim(),
       agent: state.agent || "gemini",
       model: state.model || "auto",
-      queries: currentQueries,
-      phase: state.phase || "IDLE",
-      is_zombie,
-      stats: {
-        avg_iteration_ms: avgIter,
-        iteration_history: statsData.iteration_times,
-        total_duration_ms: state.started_at ? Date.now() - new Date(state.started_at).getTime() : 0
-      }
+      queries: state.queries || 0,
+      phase: state.phase || "IDLE"
     };
   } catch (error) {
     if ((error as any).code === 'ENOENT') {
-      return { active: false, iteration: 0, max_iterations: 0, completion_promise: "", started_at: "", prompt: "", queries: 0 };
+      return { active: false, iteration: 0, max_iterations: 0, completion_promise: "", started_at: "", prompt: "", agent: "gemini", model: "auto", queries: 0, phase: "IDLE" };
     }
     return null;
   }
@@ -145,78 +59,106 @@ export async function getRalphTasks(): Promise<RalphTask[]> {
     const content = await readFile(planPath, "utf-8");
     const tasks: RalphTask[] = [];
     let currentPhase = "";
-    content.split("\n").forEach(line => {
-      // Improved phase matching: look for Phase X: ...
-      const pMatch = line.match(/\*\*Phase \d+: (.*?)\*\*/i);
-      if (pMatch) {
-        currentPhase = pMatch[1];
-        return; // Skip adding the phase itself as a task
+
+    for (const line of content.split("\n")) {
+      const phaseMatch = line.match(/(?:- \[ [x ] \] )?\*\*Phase \d+: (.*?)\*\*/i) || line.match(/### Phase \d+: (.*)/i);
+      if (phaseMatch) {
+        currentPhase = phaseMatch[1];
+        continue;
       }
-      
-      const tMatch = line.match(/^\s*-\s*\[([x ])\]\s*(.*)/);
-      if (tMatch) {
-        // Double check it's not a phase header that somehow matched tMatch
-        if (tMatch[2].includes("**Phase")) return;
-        
-        tasks.push({ 
-          description: tMatch[2].trim(), 
-          completed: tMatch[1].toLowerCase() === 'x',
-          phase: currentPhase 
+
+      const taskMatch = line.match(/^\s*-\s*\[([x ])\]\s*(.*)/);
+      if (taskMatch) {
+        tasks.push({
+          description: taskMatch[2].trim(),
+          completed: taskMatch[1].toLowerCase() === 'x',
+          phase: currentPhase
         });
       }
-    });
+    }
     return tasks;
-  } catch { return []; }
+  } catch (error) {
+    console.error("Failed to read tasks:", error);
+    return [];
+  }
 }
 
 export async function toggleRalphTask(description: string, completed: boolean): Promise<boolean> {
   try {
     const planPath = join(process.cwd(), "@fix_plan.md");
-    const content = await readFile(planPath, "utf-8");
-    const lines = content.split("\n");
-    const newLines = lines.map(line => {
-      const tMatch = line.match(/^(\s*-\s*\[)([x ])(\]\s*)(.*)/);
-      if (tMatch && tMatch[4].trim() === description.trim()) {
-        return `${tMatch[1]}${completed ? 'x' : ' '}${tMatch[3]}${tMatch[4]}`;
-      }
-      return line;
-    });
-    await Bun.write(planPath, newLines.join("\n"));
-    return true;
-  } catch (e) {
-    console.error("Failed to toggle task:", e);
+    let content = await readFile(planPath, "utf-8");
+    const escapedDesc = description.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`^(\\s*-\\s*)\\[([x ])\\](\\s*${escapedDesc})`, 'm');
+    const newMark = completed ? 'x' : ' ';
+    const newContent = content.replace(pattern, `$1[${newMark}]$3`);
+    if (newContent !== content) {
+      await Bun.write(planPath, newContent);
+      return true;
+    }
+    return false;
+  } catch {
     return false;
   }
 }
 
-export function watchRalphFiles(onUpdate: (type: 'status' | 'logs' | 'tasks', data: any) => void) {
-  const statusWatcher = watch(join(process.cwd(), ".gemini"), async (event, filename) => {
+// Global state for log offset to avoid re-reading same content
+let logOffset = 0;
+let logWatcher: any = null; // To hold the watcher instance
+
+export function watchRalphFiles(onUpdate: (type: 'status' | 'logs' | 'tasks' | 'files', data: any) => void) {
+  // Watch status file
+  const statusWatcher = watch(process.cwd(), async (event, filename) => {
     if (filename === "ralph-loop.local.md") {
       const status = await getRalphStatus();
       if (status) onUpdate('status', status);
     }
   });
+
+  // Watch tasks file
   const tasksWatcher = watch(process.cwd(), async (event, filename) => {
-    if (filename === "@fix_plan.md") onUpdate('tasks', await getRalphTasks());
-  });
-  let logOffset = 0;
-  stat(LOG_FILE_PATH).then(s => logOffset = s.size).catch(() => {});
-  const logWatcher = watch(process.cwd(), async (event, filename) => {
-    if (filename === "ralph-runner.log") {
-      try {
-        const s = await stat(LOG_FILE_PATH);
-        if (s.size < logOffset) logOffset = 0;
-        if (s.size > logOffset) {
-          const fd = await open(LOG_FILE_PATH, 'r');
-          const buffer = Buffer.alloc(s.size - logOffset);
-          await fd.read(buffer, 0, s.size - logOffset, logOffset);
-          await fd.close();
-          const newText = buffer.toString('utf-8');
-          logOffset = s.size;
-          if (newText) onUpdate('logs', newText);
-        }
-      } catch {}
+    if (filename === "@fix_plan.md") {
+      const tasks = await getRalphTasks();
+      onUpdate('tasks', tasks);
     }
   });
-  return () => { statusWatcher.close(); tasksWatcher.close(); logWatcher.close(); };
+
+  // Log streaming logic
+  const readNewLogs = async () => {
+    try {
+      const fileInfo = await stat(LOG_FILE_PATH);
+      if (fileInfo.size < logOffset) { // File truncated
+        logOffset = 0;
+      }
+      
+      if (fileInfo.size > logOffset) {
+        const fd = await open(LOG_FILE_PATH, 'r');
+        const buffer = Buffer.alloc(fileInfo.size - logOffset);
+        await fd.read(buffer, 0, fileInfo.size - logOffset, logOffset);
+        await fd.close();
+        
+        const newText = buffer.toString('utf-8');
+        logOffset = fileInfo.size;
+        if (newText) onUpdate('logs', newText);
+      }
+    } catch (e: any) {
+      // File might not exist yet or other FS errors
+      if (e.code !== 'ENOENT') console.error("Error reading logs:", e);
+    }
+  };
+
+  // Initial read for logs and set offset
+  stat(LOG_FILE_PATH).then(s => logOffset = s.size).catch(() => {});
+
+  const logWatcher = watch(process.cwd(), (event, filename) => {
+    if (filename === "ralph-runner.log") {
+      readNewLogs();
+    }
+  });
+
+  // Return cleanup function
+  return () => {
+    statusWatcher.close();
+    tasksWatcher.close();
+    logWatcher.close();
+  };
 }

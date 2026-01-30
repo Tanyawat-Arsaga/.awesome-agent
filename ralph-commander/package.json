@@ -7,7 +7,7 @@
     "build": "vike build",
     "preview": "bun run src/server/index.ts",
     "lint": "eslint src",
-    "test": "vitest run",
+    "test": "bun test",
     "test:e2e": "playwright test"
   },
   "dependencies": {

@@ -19,10 +19,14 @@ TURN_LOG=".gemini/turn.log"
 STATS_FILE=".gemini/stats.json"
 PLAN_FILE="@fix_plan.md"
 
-# Model Pool
-MODELS=("auto" "gemini-2.0-flash-exp" "gemini-1.5-flash" "gemini-2.0-pro-exp-02-05" "gemini-1.5-pro")
+# Model Pool - using robust aliases that Gemini CLI resolves internally
+MODELS=("auto" "flash" "flash-lite" "pro")
 MODEL=$INITIAL_MODEL
 BLACKLIST=()
+
+# If the initial model is not in the standard pool, add it to start
+# but it will be rotated if it fails
+[[ -n "$MODEL" && "$MODEL" != "auto" && "$MODEL" != "flash" && "$MODEL" != "pro" && "$MODEL" != "flash-lite" ]] || MODEL="auto"
 
 mkdir -p .gemini
 
@@ -38,7 +42,7 @@ started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 agent: "$AGENT"
 model: "$MODEL"
 queries: 0
-phase: "ELABORATION"
+phase: "PLANNING"
 ---
 
 $PROMPT
@@ -50,7 +54,7 @@ fi
 # Function to pick next available model not in blacklist
 pick_next_model() {
     BLACKLIST+=("$MODEL")
-    echo "🚫 Blacklisting $MODEL due to exhaustion."
+    echo "🚫 Blacklisting $MODEL (Error or Exhaustion)"
     
     for m in "${MODELS[@]}"; do
         local blacklisted=false
@@ -61,7 +65,11 @@ pick_next_model() {
             MODEL=$m
             echo "🔄 Switched to $MODEL"
             # Update state file
-            sed -i '' "s/^model: .*/model: \"$MODEL\"/" "$STATE_FILE" 2>/dev/null || sed -i "s/^model: .*/model: \"$MODEL\"/" "$STATE_FILE"
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                sed -i '' "s/^model: .*/model: \"$MODEL\"/" "$STATE_FILE"
+            else
+                sed -i "s/^model: .*/model: \"$MODEL\"/" "$STATE_FILE"
+            fi
             return 0
         fi
     done
@@ -82,23 +90,37 @@ elif [[ "$AGENT" == "gemini" ]]; then
             local model_flag=""
             [[ -n "$MODEL" ]] && model_flag="--model $MODEL"
             gemini "$instructions" --yolo $model_flag 2>&1 | tee "$TURN_LOG"
+            # Attempt to capture stats
             gemini "Report session stats" -o json --yolo $model_flag > "$STATS_FILE" 2>/dev/null
         fi
         echo -e "--- $phase_label END ---\n"
         
-        # Check for Quota Errors
+        # 1. Check for Quota Errors (429)
         if grep -qi "exhausted your capacity" "$TURN_LOG" || grep -qi "429" "$TURN_LOG" || grep -qi "RESOURCE_EXHAUSTED" "$TURN_LOG"; then
             echo "⚠️ Quota hit on $MODEL."
             if pick_next_model; then
                 echo "♻️ Retrying with new model..."
                 continue
             else
-                echo "💀 ALL MODELS EXHAUSTED. Sleeping for 5 minutes before retrying..."
-                BLACKLIST=() # Clear blacklist after sleep
+                echo "💀 ALL MODELS EXHAUSTED. Sleeping 5m..."
+                BLACKLIST=() # Reset pool
                 sleep 300
                 continue
             fi
         fi
+
+        # 2. Check for Non-existent Model (404)
+        if grep -qi "ModelNotFoundError" "$TURN_LOG" || grep -qi "entity was not found" "$TURN_LOG"; then
+            echo "❌ Model $MODEL not found (404)."
+            if pick_next_model; then
+                echo "♻️ Retrying with different model..."
+                continue
+            else
+                echo "💀 No valid models left in pool."
+                exit 1
+            fi
+        fi
+
         break
     done
 }
@@ -123,8 +145,13 @@ QUERIES=$(grep "queries: " "$STATE_FILE" | awk '{print $2}' | tr -d '"')
 for ((i=$START_ITER; i<=$MAX_ITERATIONS; i++)); do
   echo "🔄 Turn $i / $MAX_ITERATIONS"
   QUERIES=$((QUERIES + 1))
-  sed -i '' "s/^iteration: .*/iteration: $i/" "$STATE_FILE" 2>/dev/null || sed -i "s/^iteration: .*/iteration: $i/" "$STATE_FILE"
-  sed -i '' "s/^queries: .*/queries: $QUERIES/" "$STATE_FILE" 2>/dev/null || sed -i "s/^queries: .*/queries: $QUERIES/" "$STATE_FILE"
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' "s/^iteration: .*/iteration: $i/" "$STATE_FILE"
+    sed -i '' "s/^queries: .*/queries: $QUERIES/" "$STATE_FILE"
+  else
+    sed -i "s/^iteration: .*/iteration: $i/" "$STATE_FILE"
+    sed -i "s/^queries: .*/queries: $QUERIES/" "$STATE_FILE"
+  fi
 
   run_agent "@.gemini/ralph-loop.local.md @$PLAN_FILE You are Ralph. Implement next task in $PLAN_FILE, mark [x], and commit. If done, output <promise>$COMPLETION_PROMISE</promise>." "ITERATION $i"
 

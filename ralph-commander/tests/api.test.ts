@@ -1,14 +1,9 @@
-import { describe, it, expect, mock } from "bun:test";
-
-mock.module("@brillout/require-shim", () => ({
-  installRequireShim: () => {},
-  installRequireShim_setUserRootDir: () => {}
-}));
+import { describe, it, expect, vi } from "vitest";
 
 // Mock vike/server to avoid SSR-related errors in test environment
-mock.module("vike/server", () => ({
-  renderPage: mock(async () => ({ httpResponse: null })),
-  createDevMiddleware: mock(async () => ({ devMiddleware: () => {} }))
+vi.mock("vike/server", () => ({
+  renderPage: vi.fn(async () => ({ httpResponse: null })),
+  createDevMiddleware: vi.fn(async () => ({ devMiddleware: () => {} }))
 }));
 
 import { app } from "../src/server/index";

@@ -1,6 +1,6 @@
-import { describe, it, expect, mock } from "bun:test";
+import { describe, it, expect, vi } from "vitest";
 
-const mockReadFile = mock(async (path: string) => {
+const mockReadFile = vi.fn(async (path: string) => {
   if (path.includes("missing")) {
     const err = new Error("ENOENT");
     (err as any).code = "ENOENT";
@@ -16,14 +16,17 @@ started_at: "2026-01-30T12:00:00Z"
 Test prompt content`;
 });
 
-mock.module("fs/promises", () => ({
+vi.mock("fs/promises", () => ({
   readFile: (path: string) => mockReadFile(path),
-  stat: mock(async () => ({ size: 0 })),
-  open: mock(async () => ({}))
+  stat: vi.fn().mockResolvedValue({ size: 100 }),
+  open: vi.fn().mockResolvedValue({ 
+    read: vi.fn(), 
+    close: vi.fn() 
+  })
 }));
 
-mock.module("fs", () => ({
-  watch: mock(() => ({ close: () => {} }))
+vi.mock("fs", () => ({
+  watch: vi.fn().mockReturnValue({ close: vi.fn() })
 }));
 
 import { getRalphStatus, getRalphTasks } from "../src/server/services/ralph";
@@ -53,4 +56,3 @@ describe("Ralph Service", () => {
     expect(tasks[2].phase).toBe("UI");
   });
 });
-
