@@ -11,21 +11,37 @@ const isProduction = process.env.NODE_ENV === 'production';
 const root = process.cwd();
 
 export const app = new Elysia()
-  .use(cors());
+  .use(cors())
+  .ws('/ws', {
+    open(ws) {
+      ws.subscribe('ralph-updates');
+      console.log('📡 WS: Client connected');
+    },
+    message(ws, message: any) {
+      if (message === 'ping') ws.send('pong');
+    },
+    close(ws) {
+      ws.unsubscribe('ralph-updates');
+      console.log('📡 WS: Client disconnected');
+    }
+  });
 
 // Vike SSR Development Middleware
-if (!isProduction) {
+if (!isProduction && process.env.NODE_ENV !== 'test') {
   const { createDevMiddleware } = await import('vike/server');
   const { devMiddleware } = await createDevMiddleware({ root });
   app.use(connect(devMiddleware));
-} else {
+} else if (isProduction) {
   // Production: Serve static assets
-  app.use(
-    staticPlugin({
-      assets: join(root, 'dist', 'client'),
-      prefix: '/'
-    })
-  );
+  const assetsDir = join(root, 'dist', 'client');
+  if (await Bun.file(join(assetsDir, 'index.html')).exists()) {
+    app.use(
+      staticPlugin({
+        assets: assetsDir,
+        prefix: '/'
+      })
+    );
+  }
 }
 
 // API Routes
@@ -46,21 +62,39 @@ app
   .get("/api/ralph/tasks", async () => {
     return await getRalphTasks();
   })
+  .get("/api/ralph/files", async () => {
+    try {
+      const proc = Bun.spawn(["git", "status", "--porcelain"], { stdout: "pipe" });
+      const output = await new Response(proc.stdout).text();
+      return output.split("\n").filter(l => l.trim()).map(line => {
+        const status = line.slice(0, 2).trim();
+        const path = line.slice(3).trim();
+        return { status, path };
+      });
+    } catch (e) { return []; }
+  })
   .get("/api/agent/models", async () => {
     try {
-      // Run a quick probe command to get the stats object
       const proc = Bun.spawn(["gemini", "hello", "-o", "json", "--yolo"], {
         stdout: "pipe",
         stderr: "ignore"
       });
-      const output = await new Response(proc.stdout).text();
-      const data = JSON.parse(output);
+      const text = await new Response(proc.stdout).text();
+      
+      if (!text || !text.trim().startsWith("{")) {
+        throw new Error("Invalid JSON output from agent");
+      }
+
+      const data = JSON.parse(text);
       const models = Object.keys(data.stats?.models || {});
       return { success: true, models };
     } catch (e) {
       console.error("Failed to probe models:", e);
-      // Fallback if probe fails or JSON is invalid
-      return { success: false, models: [] };
+      return { 
+        success: true, 
+        models: ["gemini-2.0-flash-exp", "gemini-2.0-pro-exp-02-05", "gemini-1.5-pro", "gemini-1.5-flash"],
+        is_fallback: true 
+      };
     }
   })
   .get("/api/ralph/logs", async () => {
@@ -73,26 +107,39 @@ app
   })
   .delete("/api/ralph/logs", async () => {
     try {
-      // Use Bun.write to overwrite with empty string
       await Bun.write("ralph-runner.log", "");
       return { success: true };
     } catch (e) { 
       console.error(e);
       return { success: false, error: "Failed to clear logs" }; 
-    }
+    } 
   })
   .post("/api/ralph/stop", async () => {
     try {
-      // 1. Mark state file inactive so runner exits loop
+      // 1. Mark state file inactive
       const stateFile = ".gemini/ralph-loop.local.md";
-      const content = await Bun.file(stateFile).text();
-      const updated = content.replace("active: true", "active: false");
-      await Bun.write(stateFile, updated);
+      const file = Bun.file(stateFile);
+      if (await file.exists()) {
+        const content = await file.text();
+        const updated = content.replace("active: true", "active: false");
+        await Bun.write(stateFile, updated);
+      }
 
-      // 2. Kill the runner and children
-      Bun.spawn(["pkill", "-f", "scripts/run-loop.sh"]);
-      Bun.spawn(["pkill", "-f", "gemini"]);
-      Bun.spawn(["pkill", "-f", "claude"]);
+      // 2. Kill the runner via PID file if it exists
+      const pidFile = Bun.file(".gemini/runner.pid");
+      if (await pidFile.exists()) {
+        const pid = await pidFile.text();
+        if (pid && pid.trim()) {
+            try {
+              // Kill the entire process group (negative PID)
+              // This kills the bash script AND all its child agent processes
+              process.kill(-parseInt(pid.trim()), 'SIGTERM');
+            } catch (e) {
+              try { process.kill(parseInt(pid.trim()), 'SIGTERM'); } catch(e2) {}
+            }
+        }
+        await Bun.write(".gemini/runner.pid", "");
+      }
       
       return { success: true };
     } catch (error) {
@@ -106,16 +153,17 @@ app
     if (!["gemini", "claude"].includes(agent)) return { success: false, error: "Invalid agent" };
     
     try {
-      // Clear logs first
-      await Bun.write("ralph-runner.log", `🚀 Launching ${agent} loop...\n`);
-      
+      await Bun.write("ralph-runner.log", `🚀 Launching ${agent} lifecycle...\n`);
       const logFile = Bun.file("ralph-runner.log");
       
-      Bun.spawn(["bash", "scripts/run-loop.sh", agent, prompt, String(max_iterations), completion_promise, model], {
+      const proc = Bun.spawn(["bash", "scripts/run-loop.sh", agent, prompt, String(max_iterations), completion_promise, model], {
         stdout: logFile,
         stderr: logFile,
         stdin: "ignore"
       });
+      
+      // Save PID for precise control
+      await Bun.write(".gemini/runner.pid", String(proc.pid));
       
       return { success: true };
     } catch (e) {
