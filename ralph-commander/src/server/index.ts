@@ -10,7 +10,7 @@ import { getRalphStatus } from './services/ralph';
 const isProduction = process.env.NODE_ENV === 'production';
 const root = process.cwd();
 
-const app = new Elysia()
+export const app = new Elysia()
   .use(cors());
 
 // Vike SSR Development Middleware
@@ -42,23 +42,55 @@ app
   })
   .delete("/api/ralph/logs", async () => {
     try {
+      // Use Bun.write to overwrite with empty string
       await Bun.write("ralph-runner.log", "");
       return { success: true };
-    } catch { return { success: false, error: "Failed to clear logs" }; }
+    } catch (e) { 
+      console.error(e);
+      return { success: false, error: "Failed to clear logs" }; 
+    }
   })
   .post("/api/ralph/stop", async () => {
-    const proc = Bun.spawn(["bash", "../agents/gemini/extensions/gemini-cli-ralph/scripts/cancel-ralph-loop.sh"]);
-    await proc.exited;
-    return { success: true };
+    try {
+      // 1. Mark state file inactive so runner exits loop
+      const stateFile = ".gemini/ralph-loop.local.md";
+      const content = await Bun.file(stateFile).text();
+      const updated = content.replace("active: true", "active: false");
+      await Bun.write(stateFile, updated);
+
+      // 2. Kill the runner and children
+      Bun.spawn(["pkill", "-f", "scripts/run-loop.sh"]);
+      Bun.spawn(["pkill", "-f", "gemini"]);
+      Bun.spawn(["pkill", "-f", "claude"]);
+      
+      return { success: true };
+    } catch (error) {
+      console.error("Failed to stop Ralph:", error);
+      return { success: false, error: "Failed to send stop signal" };
+    }
   })
   .post("/api/ralph/start", async ({ body }: any) => {
-    const { prompt, max_iterations, completion_promise, agent = "gemini" } = body;
+    const { prompt, max_iterations, completion_promise, agent = "gemini", model = "" } = body;
+    if (!prompt) return { success: false, error: "Prompt is required" };
     if (!["gemini", "claude"].includes(agent)) return { success: false, error: "Invalid agent" };
     
-    Bun.spawn(["bash", "scripts/run-loop.sh", agent, prompt, String(max_iterations), completion_promise], {
-      stdio: ["ignore", "inherit", "inherit"]
-    });
-    return { success: true };
+    try {
+      // Clear logs first
+      await Bun.write("ralph-runner.log", `🚀 Launching ${agent} loop...\n`);
+      
+      const logFile = Bun.file("ralph-runner.log");
+      
+      Bun.spawn(["bash", "scripts/run-loop.sh", agent, prompt, String(max_iterations), completion_promise, model], {
+        stdout: logFile,
+        stderr: logFile,
+        stdin: "ignore"
+      });
+      
+      return { success: true };
+    } catch (e) {
+      console.error(e);
+      return { success: false, error: "Failed to spawn" };
+    }
   });
 
 // Catch-all route for SSR (must be last)
@@ -83,5 +115,7 @@ app.all('*', async (context) => {
   });
 });
 
-app.listen({ port: 3000, hostname: '0.0.0.0' });
-console.log(`🦊 Ralph Commander (SSR) is running at http://localhost:3000`);
+if (process.env.NODE_ENV !== 'test') {
+  app.listen({ port: 3000, hostname: '0.0.0.0' });
+  console.log(`🦊 Ralph Commander (SSR) is running at http://localhost:3000`);
+}

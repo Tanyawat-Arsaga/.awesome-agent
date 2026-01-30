@@ -24,3 +24,4 @@
     - [x] Add Clear Logs button to terminal header
     - [x] Implement better error handling for backend services
     - [x] Polish the dashboard UI
+    - [x] Fix API tests and backend validation
