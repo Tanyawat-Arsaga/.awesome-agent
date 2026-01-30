@@ -15,19 +15,19 @@
     - [x] UI: Implement "Focus Mode" (visually highlight the first incomplete task)
     - [x] UI: Overall blueprint completion progress bar (e.g., "12/15 Tasks Done")
 
-- [ ] **Phase 3: Log Viewer Advanced Features**
-    - [ ] UI: Add local search functionality (find in logs)
-    - [ ] UI: Add basic syntax highlighting for code blocks within log output
-    - [ ] UI: Implement log virtualization/truncation for files > 1MB to prevent DOM lag
+- [x] **Phase 3: Log Viewer Advanced Features**
+    - [x] UI: Add local search functionality (find in logs)
+    - [x] UI: Add basic syntax highlighting for code blocks within log output
+    - [x] UI: Implement log virtualization/truncation for files > 1MB to prevent DOM lag
 
-- [ ] **Phase 4: Operational Polish**
-    - [ ] UI: Setup Keyboard Shortcuts (Cmd+Enter: Engage, Esc: Kill, L: Clear, D: Theme)
-    - [ ] UI: Add "Engage Agent" confirmation if `resume` is not selected
-    - [ ] UI: Theme Toggle (Dark/Light) - current UI seems to be mostly dark/white fixed
-    - [ ] UI: Tooltip support for all complex metrics in StatsGrid
+- [x] **Phase 4: Operational Polish**
+    - [x] UI: Setup Keyboard Shortcuts (Cmd+Enter: Engage, Esc: Kill, L: Clear, D: Theme)
+    - [x] UI: Add "Engage Agent" confirmation if `resume` is not selected
+    - [x] UI: Theme Toggle (Dark/Light) - current UI seems to be mostly dark/white fixed
+    - [x] UI: Tooltip support for all complex metrics in StatsGrid
 
-- [ ] **Phase 5: Reliability & QA**
-    - [ ] Verify `process.kill(-pid)` reliability across different OS (Darwin/Linux)
-    - [ ] Add Vitest tests for `useRalphStore` and `StatsGrid`
-    - [ ] Implement Playwright E2E tests for the "Start -> Iterate -> Stop" flow
-    - [ ] Perform Lighthouse audit and fix accessibility (ARIA labels, etc.)
+- [x] **Phase 5: Reliability & QA**
+    - [x] Verify `process.kill(-pid)` reliability across different OS (Darwin/Linux)
+    - [x] Add Vitest tests for `useRalphStore` and `StatsGrid`
+    - [x] Implement Playwright E2E tests for the "Start -> Iterate -> Stop" flow
+    - [x] Perform Lighthouse audit and fix accessibility (ARIA labels, etc.)

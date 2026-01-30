@@ -34,8 +34,8 @@
     - [x] Implement keyboard shortcuts (Cmd+Enter to start, Esc to stop, L to clear, D for theme)
     - [x] Add tooltips to explain complex statistics and metrics
 
-- [ ] **Phase 6: Quality Assurance**
-    - [ ] Add Vitest component tests for new UI elements
-    - [ ] Implement Playwright E2E tests for the full loop workflow
-    - [ ] Perform Lighthouse audit and resolve accessibility/performance bottlenecks
-    - [ ] Verify auto-recovery logic in runner scripts and backend handlers
+- [x] **Phase 6: Quality Assurance**
+    - [x] Add Vitest component tests for new UI elements
+    - [x] Implement Playwright E2E tests for the full loop workflow
+    - [x] Perform Lighthouse audit and resolve accessibility/performance bottlenecks
+    - [x] Verify auto-recovery logic in runner scripts and backend handlers

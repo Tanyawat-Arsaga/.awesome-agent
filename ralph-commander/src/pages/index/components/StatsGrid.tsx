@@ -4,10 +4,17 @@ import { useRalphStore } from '../../../renderer/store/useRalphStore';
 
 const InfoTooltip = ({ text }: { text: string }) => (
   <div className="group relative inline-block ml-2">
-    <div className="cursor-help text-slate-300 dark:text-slate-600 hover:text-slate-500 transition-colors">
+    <div 
+      className="cursor-help text-slate-300 dark:text-slate-600 hover:text-slate-500 transition-colors"
+      aria-haspopup="true"
+      aria-label="Informational tooltip"
+    >
       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
     </div>
-    <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 hidden group-hover:block w-48 p-3 bg-slate-900 dark:bg-black text-white text-[9px] font-bold rounded-xl shadow-2xl z-[100] border border-white/10 backdrop-blur-xl transition-all">
+    <div 
+      role="tooltip"
+      className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 hidden group-hover:block w-48 p-3 bg-slate-900 dark:bg-black text-white text-[9px] font-bold rounded-xl shadow-2xl z-[100] border border-white/10 backdrop-blur-xl transition-all"
+    >
       {text}
       <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-900 dark:border-t-black"></div>
     </div>

@@ -31,7 +31,18 @@ app.group('/api', (api) =>
         const statsFile = Bun.file(".gemini/stats.json");
         if (await statsFile.exists()) stats = (await statsFile.json()).stats || {};
       } catch {} // eslint-disable-line
-      return { ...(s || { active: false }), stats };
+      const defaultStatus = { 
+        active: false, 
+        iteration: 0, 
+        max_iterations: 0, 
+        completion_promise: "", 
+        started_at: "", 
+        queries: 0,
+        agent: "gemini",
+        model: "auto",
+        phase: "IDLE"
+      };
+      return { ...defaultStatus, ...(s || {}), stats };
     })
     .get("/ralph/tasks", async () => await getRalphTasks())
     .post("/ralph/tasks/toggle", async ({ body }: any) => {
