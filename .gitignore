@@ -1,23 +1,63 @@
 # OS files
 .DS_Store
 Thumbs.db
+.DS_Store?
+ehthumbs.db
+Icon?
 
 # Build artifacts
+dist/
 build/
+.build/
+out/
+bin/
+obj/
 
-# External dependencies (if handled as clones)
-# external/superpowers/  # Uncomment if you want to manage this separately
-
-# Local state
-conductor/setup_state.json
-.gemini/ralph-loop.local.md
-
-# Test artifacts
-tests/mock_home/
+# Node / Bun
+node_modules/
+bun.lock
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+bun-debug.log*
 
 # Logs
 *.log
-.build/
+logs/
+server.log
+app.log
+backend.log
+frontend.log
+ralph-runner.log
 
+# Screenshots / Media
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+!shared/skills/**/*.svg
+!agents/**/*.svg
+!public/**/*.svg
+
+# Local state / Config
 .gemini/
+.claude/
+*.local.md
+*.local.json
+*.pid
+conductor/setup_state.json
 gha-creds-*.json
+
+# Test artifacts
+tests/mock_home/
+test-results/
+playwright-report/
+coverage/
+.nyc_output/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
