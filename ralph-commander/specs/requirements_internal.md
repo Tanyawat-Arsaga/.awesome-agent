@@ -25,7 +25,7 @@ The source of truth for the loop's execution state.
 ### 2.2 Execution Metadata
 - **PID File (`.gemini/runner.pid`)**: Stores the process ID of the `run-loop.sh` process group. Used for reliable termination.
 - **Stats Store (`.gemini/stats.json`)**: Persistent telemetry.
-  - `iteration_times`: List of `{ iteration, duration_ms, queries }`.
+  - `iteration_times`: List of `{ iteration: number, duration_ms: number, queries: number }`.
   - `start_times`: Map of `iteration -> ISO timestamp`.
   - `queries_at_last_iteration`: Offset for calculating incremental queries.
 
@@ -37,46 +37,55 @@ The source of truth for the loop's execution state.
 
 ## 3. Backend Services (ElysiaJS)
 
-### 3.1 Lifecycle Management
-- **START**: Spawns `scripts/run-loop.sh` with arguments mapping to the start form.
-  - Redirects stdout/stderr to `ralph-runner.log`.
-  - Records PID.
-- **STOP**: 
+### 3.1 API Endpoints (`/api`)
+- **GET `/ralph/status`**: Returns the combined state from the state file and stats store.
+  - Includes `is_zombie` flag (true if `active: true` but PID is dead).
+- **GET `/ralph/tasks`**: Returns parsed tasks from `@fix_plan.md`.
+- **GET `/ralph/logs`**: Returns the full content of `ralph-runner.log`.
+- **DELETE `/ralph/logs`**: Wipes the log file.
+- **GET `/ralph/files`**: Returns changed files via `git status --porcelain`.
+- **GET `/agent/models`**: Returns available models for the selected agent.
+- **POST `/ralph/start`**: Spawns `scripts/run-loop.sh`.
+  - Payload: `{ prompt, max_iterations, completion_promise, agent, model, resume }`.
+- **POST `/ralph/stop`**: 
   - Sets `active: false` in the state file.
-  - Kills the process group via PID.
-  - Clears PID file.
+  - Kills the process group via PID using `process.kill(-pid, 'SIGTERM')`.
 
 ### 3.2 Real-time Sync (WebSockets)
-- **Watcher**: Uses `fs.watch` to monitor:
-  - `.gemini/ralph-loop.local.md` -> Triggers `status` update.
-  - `@fix_plan.md` -> Triggers `tasks` update.
-  - `ralph-runner.log` -> Streams incremental text chunks to `logs`.
-- **Pub/Sub**: `ralph-updates` topic.
+- **Endpoint**: `/ws`
+- **Topic**: `ralph-updates`
+- **Messages**:
+  - `{ type: "status", data: RalphStatus }`
+  - `{ type: "tasks", data: RalphTask[] }`
+  - `{ type: "logs", data: string }` (Incremental text chunks)
+
+### 3.3 Watcher Logic
+- **FS Watchers**:
+  - Watch `.gemini/` for `ralph-loop.local.md` changes.
+  - Watch root for `@fix_plan.md` changes.
+  - Watch root for `ralph-runner.log` growth (using byte offset to stream only new data).
 
 ## 4. Frontend Architecture (React + Vike)
 
 ### 4.1 Global Store (`useRalphStore`)
-- Manages status, logs, tasks, and connection state.
-- Handles delta updates for logs to prevent UI lag on large buffers.
+- Uses `zustand` for state management.
+- Handles `logs` as an array of strings or a single large buffer with efficient updates.
 
 ### 4.2 UI Components
 - **StatsGrid**: 
-  - Velocity calculation: Time diff / Iteration count.
-  - Cost estimation: Based on token counters in `stats.json`.
-  - Intelligence Density: Small heatmap of query counts per turn.
+  - **Velocity**: Average iteration duration.
+  - **Efficiency**: Queries per iteration.
+  - **Duration**: Total time since `started_at`.
 - **ControlPanel**:
-  - "Fail Fast" Validation: Prevents starting if a loop is already active.
-  - Resume functionality: Allows picking up an existing `@fix_plan.md`.
-- **LogStream**: 
-  - Auto-scrolling terminal-like container.
-  - Manual scroll override.
+  - Validates inputs before starting.
+  - Provides "Resume" toggle to skip prompt requirement if `@fix_plan.md` exists.
+- **LogViewer**: Terminal-style output with auto-scroll and ANSI color support.
 
 ## 5. Failure Recovery & Robustness
-- **Zombie Detection**: Backend checks if the PID in `.gemini/runner.pid` is actually alive when `active: true` is reported.
-- **Socket Reconnection**: Frontend implements exponential backoff for WS disconnection.
-- **Log Rotation/Wiping**: Ability to clear `ralph-runner.log` to maintain performance.
+- **Zombie Detection**: If `state.active` is true but the process in `runner.pid` does not exist (checked via `process.kill(pid, 0)`), the UI shows a "Zombie" state and allows cleanup.
+- **Process Group Kill**: Stopping the loop kills the entire shell tree to prevent orphaned `gemini` or `claude` processes.
 
 ## 6. Development Philosophy
-- **Lightweight**: Must not consume significant CPU/RAM compared to the agent loop itself.
-- **Fail Fast**: UI should immediately reflect if the backend or agent has crashed.
-- **No Placeholders**: All visualized data must come from real system state.
+- **No Placeholders**: If data isn't available from the system, don't show it or show "N/A".
+- **Fail Fast**: The commander should be the first thing to tell you if the agent is stuck.
+- **Lightweight**: Zero-config where possible; rely on standard paths.

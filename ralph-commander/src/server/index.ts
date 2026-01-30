@@ -3,7 +3,7 @@ import { Elysia } from 'elysia';
 import { staticPlugin } from '@elysiajs/static';
 import { cors } from '@elysiajs/cors';
 import { connect } from 'elysia-connect-middleware';
-import { getRalphStatus, getRalphTasks, watchRalphFiles } from './services/ralph';
+import { getRalphStatus, getRalphTasks, watchRalphFiles, toggleRalphTask } from './services/ralph';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const root = process.cwd();
@@ -34,6 +34,11 @@ app.group('/api', (api) =>
       return { ...(s || { active: false }), stats };
     })
     .get("/ralph/tasks", async () => await getRalphTasks())
+    .post("/ralph/tasks/toggle", async ({ body }: any) => {
+      const { description, completed } = body;
+      const success = await toggleRalphTask(description, completed);
+      return { success };
+    })
     .get("/ralph/files", async () => {
       try {
         const proc = Bun.spawn(["git", "status", "--porcelain"], { stdout: "pipe" });

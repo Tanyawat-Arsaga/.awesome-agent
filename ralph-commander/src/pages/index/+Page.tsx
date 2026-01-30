@@ -79,6 +79,16 @@ export default function Page() {
     setLogs('');
   };
 
+  const handleToggleTask = async (description: string, completed: boolean) => {
+    await fetch('/api/ralph/tasks/toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description, completed })
+    });
+    // Optimistic update
+    setTasks(tasks.map(t => t.description === description ? { ...t, completed } : t));
+  };
+
   // 4. Initial Setup & Polling Fallback
   useEffect(() => {
     fetchModels();
@@ -111,27 +121,63 @@ export default function Page() {
     return acc;
   }, {} as Record<string, typeof tasks>);
 
+  const completedTasksCount = tasks.filter(t => t.completed).length;
+  const totalTasksCount = tasks.length;
+  const progressPercent = totalTasksCount > 0 ? Math.round((completedTasksCount / totalTasksCount) * 100) : 0;
+  const firstIncompleteTask = tasks.find(t => !t.completed);
+
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans p-8 sm:p-12 selection:bg-blue-100 selection:text-blue-900">
       <div className="max-w-[1600px] mx-auto">
         
         {/* Header Section */}
-        <header className="flex flex-col lg:row-span-row justify-between items-start lg:items-center gap-8 mb-12">
-          <div>
-            <h1 className="text-5xl font-black tracking-tighter text-slate-900 flex items-center gap-4">
-              <span className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white w-14 h-14 rounded-2xl flex items-center justify-center shadow-2xl shadow-blue-500/20 rotate-3">RC</span>
-              Ralph Commander
-            </h1>
-            <div className="flex gap-6 mt-3 items-center ml-1">
-              <p className="text-slate-400 font-bold text-xs uppercase tracking-[0.2em]">Autonomous Agent Orchestrator</p>
-              <div className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border ${wsConnected ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
-                {wsConnected ? 'Uplink Stable' : 'Uplink Lost'}
+        <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 mb-12">
+          <div className="flex items-center gap-8">
+            <div>
+              <h1 className="text-5xl font-black tracking-tighter text-slate-900 flex items-center gap-4">
+                <span className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white w-14 h-14 rounded-2xl flex items-center justify-center shadow-2xl shadow-blue-500/20 rotate-3">RC</span>
+                Ralph Commander
+              </h1>
+              <div className="flex gap-6 mt-3 items-center ml-1">
+                <p className="text-slate-400 font-bold text-xs uppercase tracking-[0.2em]">Autonomous Agent Orchestrator</p>
+                <div className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border ${wsConnected ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                  {wsConnected ? 'Uplink Stable' : 'Uplink Lost'}
+                </div>
               </div>
+            </div>
+
+            <div className="h-12 w-px bg-slate-200 hidden xl:block"></div>
+
+            <div className="hidden xl:flex gap-8">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Engine</span>
+                <span className="text-sm font-black text-slate-700 uppercase tracking-tighter">{status.agent}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Model</span>
+                <span className="text-sm font-black text-slate-700 uppercase tracking-tighter">{status.model}</span>
+              </div>
+              {status.active && status.completion_promise && (
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Promise</span>
+                  <span className="text-sm font-black text-blue-600 uppercase tracking-tighter">{status.completion_promise}</span>
+                </div>
+              )}
             </div>
           </div>
 
           <div className="flex items-center gap-4">
             <AnimatePresence>
+              {status.is_zombie && status.active && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="px-6 py-2 bg-rose-100 text-rose-600 border-2 border-rose-200 rounded-2xl text-xs font-black uppercase tracking-[0.2em] flex items-center gap-3 animate-pulse"
+                >
+                  <Power size={14} />
+                  Zombie Loop Detected
+                </motion.div>
+              )}
               {status.active && (
                 <motion.div 
                   initial={{ opacity: 0, x: 20 }}
@@ -297,7 +343,7 @@ export default function Page() {
           {/* Blueprint Sidebar */}
           <aside className="lg:col-span-4 space-y-8">
             <section className="bg-white rounded-[3rem] shadow-2xl shadow-slate-200/50 border border-white p-10 sticky top-12 max-h-[calc(100vh-6rem)] overflow-hidden flex flex-col transition-all hover:shadow-slate-300/50">
-              <div className="flex justify-between items-center mb-8 flex-shrink-0">
+              <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h3 className="text-2xl font-black text-slate-800 flex items-center gap-4">
                   <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center">
                     <CheckCircle2 size={20} />
@@ -305,22 +351,46 @@ export default function Page() {
                   Lifecycle Blueprint
                 </h3>
               </div>
+
+              <div className="mb-8 flex-shrink-0">
+                <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
+                  <span>Progress</span>
+                  <span>{completedTasksCount} / {totalTasksCount} ({progressPercent}%)</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progressPercent}%` }}
+                    className="bg-blue-600 h-full rounded-full"
+                  />
+                </div>
+              </div>
               
               <div className="flex-1 overflow-auto pr-4 space-y-10 custom-scrollbar">
                 {Object.keys(groupedTasks).length > 0 ? Object.entries(groupedTasks).map(([phase, phaseTasks]) => (
                   <div key={phase} className="relative">
                     <h4 className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em] border-b border-slate-50 pb-3 mb-6 sticky top-0 bg-white z-10">{phase}</h4>
                     <div className="space-y-4">
-                      {phaseTasks.map((task, idx) => (
-                        <div key={idx} className={`group flex items-start gap-4 p-5 rounded-3xl border-2 transition-all ${task.completed ? 'bg-emerald-50/30 border-emerald-100/50 opacity-50' : 'bg-slate-50/50 border-slate-100 hover:border-blue-200 hover:bg-white shadow-sm hover:shadow-xl hover:shadow-blue-500/5'}`}>
-                          <div className={`mt-1 w-6 h-6 rounded-xl flex items-center justify-center flex-shrink-0 border-2 transition-all duration-500 ${task.completed ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/30 rotate-[360deg]' : 'border-slate-200 group-hover:border-blue-400 group-hover:rotate-12'}`}>
-                            {task.completed && <CheckCircle2 size={14} strokeWidth={3} />}
+                      {phaseTasks.map((task, idx) => {
+                        const isFocus = firstIncompleteTask?.description === task.description;
+                        return (
+                          <div 
+                            key={idx} 
+                            onClick={() => handleToggleTask(task.description, !task.completed)}
+                            className={`group flex items-start gap-4 p-5 rounded-3xl border-2 transition-all cursor-pointer ${task.completed ? 'bg-emerald-50/30 border-emerald-100/50 opacity-50' : isFocus ? 'bg-blue-50/50 border-blue-400 shadow-xl shadow-blue-500/10 ring-2 ring-blue-500/10' : 'bg-slate-50/50 border-slate-100 hover:border-blue-200 hover:bg-white shadow-sm hover:shadow-xl hover:shadow-blue-500/5'}`}
+                          >
+                            <div className={`mt-1 w-6 h-6 rounded-xl flex items-center justify-center flex-shrink-0 border-2 transition-all duration-500 ${task.completed ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/30 rotate-[360deg]' : 'border-slate-200 group-hover:border-blue-400 group-hover:rotate-12'}`}>
+                              {task.completed && <CheckCircle2 size={14} strokeWidth={3} />}
+                            </div>
+                            <span className={`text-sm font-bold leading-relaxed transition-colors ${task.completed ? 'text-slate-400 line-through' : 'text-slate-700 group-hover:text-blue-600'}`}>
+                              {task.description}
+                              {isFocus && !task.completed && (
+                                <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-600 text-[8px] font-black uppercase rounded-lg tracking-widest">Active Focus</span>
+                              )}
+                            </span>
                           </div>
-                          <span className={`text-sm font-bold leading-relaxed transition-colors ${task.completed ? 'text-slate-400 line-through' : 'text-slate-700 group-hover:text-blue-600'}`}>
-                            {task.description}
-                          </span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )) : (

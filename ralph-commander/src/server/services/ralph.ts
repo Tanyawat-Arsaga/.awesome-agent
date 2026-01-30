@@ -169,6 +169,26 @@ export async function getRalphTasks(): Promise<RalphTask[]> {
   } catch { return []; }
 }
 
+export async function toggleRalphTask(description: string, completed: boolean): Promise<boolean> {
+  try {
+    const planPath = join(process.cwd(), "@fix_plan.md");
+    const content = await readFile(planPath, "utf-8");
+    const lines = content.split("\n");
+    const newLines = lines.map(line => {
+      const tMatch = line.match(/^(\s*-\s*\[)([x ])(\]\s*)(.*)/);
+      if (tMatch && tMatch[4].trim() === description.trim()) {
+        return `${tMatch[1]}${completed ? 'x' : ' '}${tMatch[3]}${tMatch[4]}`;
+      }
+      return line;
+    });
+    await Bun.write(planPath, newLines.join("\n"));
+    return true;
+  } catch (e) {
+    console.error("Failed to toggle task:", e);
+    return false;
+  }
+}
+
 export function watchRalphFiles(onUpdate: (type: 'status' | 'logs' | 'tasks', data: any) => void) {
   const statusWatcher = watch(join(process.cwd(), ".gemini"), async (event, filename) => {
     if (filename === "ralph-loop.local.md") {
