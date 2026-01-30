@@ -15,13 +15,26 @@
 - [x] **Phase 4: Control**
     - [x] Implement `POST /api/ralph/stop` to run the cancel script
     - [x] Add a big red "STOP" button in the UI
-    - [x] **Phase 5: Orchestration (New)**
-        - [x] Create `scripts/run-loop.sh` runner script
-        - [x] Implement `POST /api/ralph/start` endpoint
-        - [x] Add "Start New Loop" form to UI
+- [x] **Phase 5: Orchestration**
+    - [x] Create `scripts/run-loop.sh` runner script
+    - [x] Implement `POST /api/ralph/start` endpoint
+    - [x] Add "Start New Loop" form to UI
 - [x] **Phase 6: Polish & Improvements**
     - [x] Add terminal auto-scroll to bottom when logs update
     - [x] Add Clear Logs button to terminal header
     - [x] Implement better error handling for backend services
     - [x] Polish the dashboard UI
     - [x] Fix API tests and backend validation
+
+- [ ] **Phase 7: Advanced Orchestration (Elaboration)**
+    - [x] Implement task list parsing in `src/server/services/ralph.ts`
+    - [x] Expose `GET /api/ralph/tasks` to fetch tasks from `@fix_plan.md`
+    - [ ] Automatically update `@fix_plan.md` with a plan if the prompt is "new"
+- [ ] **Phase 8: UI/UX Overhaul**
+    - [ ] Design and implement a "Task List" sidebar or section in the UI
+    - [ ] Improve the general aesthetic (gradients, better shadows, better typography)
+    - [ ] Add "Iteration History" or "Query Log" visualization
+- [ ] **Phase 9: Robustness & Testing**
+    - [ ] Add vitest for frontend components
+    - [ ] Add more thorough API integration tests
+    - [ ] Implement auto-recovery or better error reporting in `run-loop.sh`

@@ -4,7 +4,7 @@ import { staticPlugin } from '@elysiajs/static';
 import { cors } from '@elysiajs/cors';
 import { connect } from 'elysia-connect-middleware';
 import { renderPage } from 'vike/server';
-import { getRalphStatus } from './services/ralph';
+import { getRalphStatus, getRalphTasks } from './services/ralph';
 
 // Configuration
 const isProduction = process.env.NODE_ENV === 'production';
@@ -31,7 +31,38 @@ if (!isProduction) {
 // API Routes
 app
   .get("/api/health", () => ({ status: "ok" }))
-  .get("/api/ralph/status", async () => await getRalphStatus())
+  .get("/api/ralph/status", async () => {
+    const status = await getRalphStatus();
+    let stats = {};
+    try {
+      const statsFile = Bun.file(".gemini/stats.json");
+      if (await statsFile.exists()) {
+        const raw = await statsFile.json();
+        stats = raw.stats || {};
+      }
+    } catch (e) {}
+    return { ...(status || { active: false }), stats };
+  })
+  .get("/api/ralph/tasks", async () => {
+    return await getRalphTasks();
+  })
+  .get("/api/agent/models", async () => {
+    try {
+      // Run a quick probe command to get the stats object
+      const proc = Bun.spawn(["gemini", "hello", "-o", "json", "--yolo"], {
+        stdout: "pipe",
+        stderr: "ignore"
+      });
+      const output = await new Response(proc.stdout).text();
+      const data = JSON.parse(output);
+      const models = Object.keys(data.stats?.models || {});
+      return { success: true, models };
+    } catch (e) {
+      console.error("Failed to probe models:", e);
+      // Fallback if probe fails or JSON is invalid
+      return { success: false, models: [] };
+    }
+  })
   .get("/api/ralph/logs", async () => {
     try {
       const logPath = "ralph-runner.log";
